@@ -8,27 +8,23 @@ flowchart TD
 
     scoreCheck -->|"Yes"| highConf{"Score >= 0.85?"}
     highConf -->|"Yes"| fastExtract["Fast extract from top chunks"]
-    highConf -->|"No"| synthRag["Synthesize with gemma4:e2b using retrieved sources"]
-    fastExtract --> showRag["Return cited answer mode: rag"]
-    synthRag --> showRag
-    showRag --> saveHist1["Save to history"]
-    saveHist1 --> doneNode(["Done"])
+    highConf -->|"No"| synthRag["Synthesize with qwen2.5-coder:1.5b"]
+    fastExtract --> askSat
+    synthRag --> askSat
 
-    scoreCheck -->|"No"| llmCall["Ask local gemma4:e2b"]
+    scoreCheck -->|"No"| llmCall["Ask local qwen2.5-coder:1.5b"]
     llmCall --> llmOk{"Proper LLM answer?"}
-    llmOk -->|"Yes"| showLlm["Return answer mode: llm"]
-    showLlm --> saveHist2["Save to history"]
-    saveHist2 --> correctBtn{"User marks Correct?"}
-    correctBtn -->|"Yes"| trainKb["Write knowledge file and embed into Chroma"]
+    llmOk -->|"Yes"| askSat["Ask user: Are you satisfied?"]
+    llmOk -->|"No"| askSat
+
+    askSat -->|"Yes — satisfied"| doneNode(["Done"])
+    askSat -->|"No — search internet"| webSearch["Search internet / Playwright docs"]
+    webSearch --> synthWeb["Synthesize with qwen2.5-coder:1.5b"]
+    synthWeb --> showWeb["Return mode: internet"]
+    showWeb --> correctBtn{"User marks Correct?"}
+    correctBtn -->|"Yes"| trainKb["Train Chroma knowledge base"]
     correctBtn -->|"No"| doneNode
     trainKb --> doneNode
-
-    llmOk -->|"No"| webSearch["Search internet / Playwright docs"]
-    webSearch --> fetchPages["Fetch page text"]
-    fetchPages --> synthWeb["Synthesize with gemma4:e2b"]
-    synthWeb --> showWeb["Return answer mode: internet"]
-    showWeb --> saveHist3["Save to history"]
-    saveHist3 --> correctBtn
 
     classDef store fill:#C2E5FF,stroke:#3DADFF
     classDef decision fill:#FFECBD,stroke:#FFC943
@@ -40,9 +36,8 @@ flowchart TD
     scoreCheck:::decision
     highConf:::decision
     llmOk:::decision
+    askSat:::decision
     correctBtn:::decision
-    showRag:::ok
-    showLlm:::ok
     showWeb:::ok
     webSearch:::warn
 ```
@@ -50,7 +45,7 @@ flowchart TD
 ## Cascade summary
 
 1. **Vector DB (Chroma)** — retrieve Playwright knowledge  
-2. **Ollama `gemma4:e2b`** — rewrite/synthesize from sources (skipped on very high similarity for speed)  
-3. **Local LLM alone** — if RAG is weak  
-4. **Internet** — if LLM has no proper answer  
+2. **Ollama `qwen2.5-coder:1.5b` (LangChain)** — synthesize or answer if RAG is weak  
+3. **Ask user** — Are you satisfied?  
+4. **Internet** — only if the user clicks **No — search internet**  
 5. **History → Correct** — only then train the knowledge base / vector DB  

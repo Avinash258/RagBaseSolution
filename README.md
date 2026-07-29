@@ -2,13 +2,13 @@
 
 Local RAG chatbot for Playwright testing.
 
-**Flow:** Vector DB (Chroma) → Ollama `gemma4:e2b` → Internet (if needed) → Save to KB when marked correct
+**Flow:** Vector DB (Chroma) → LangChain + Ollama `qwen2.5-coder:1.5b` → ask if satisfied → Internet only if not → Save to KB when marked correct
 
 ## Requirements
 
 - Python 3.12+
 - [Ollama](https://ollama.com) running locally with:
-  - `gemma4:e2b` (chat)
+  - `qwen2.5-coder:1.5b` (chat / coding)
   - `nomic-embed-text` (embeddings)
 
 ## Setup

@@ -1,6 +1,7 @@
 rag/chroma_db/
 rag/history/
 rag/sources/
+rag/finetune/*.jsonl
 __pycache__/
 *.pyc
 .venv/

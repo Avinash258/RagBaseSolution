@@ -86,6 +86,41 @@ class AnswerHistory:
         self.path.write_text("\n".join(out) + ("\n" if out else ""), encoding="utf-8")
         return updated
 
+    def set_feedback(
+        self,
+        entry_id: str,
+        *,
+        rating: str,
+        comment: str = "",
+    ) -> dict | None:
+        """Persist user feedback on an answer (helpful / not_helpful)."""
+        if not self.path.exists():
+            return None
+        rating = (rating or "").strip().lower()
+        if rating not in {"helpful", "not_helpful"}:
+            return None
+        updated: dict | None = None
+        lines = self.path.read_text(encoding="utf-8").splitlines()
+        out: list[str] = []
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                out.append(line)
+                continue
+            if row.get("id") == entry_id:
+                row["feedback"] = {
+                    "rating": rating,
+                    "comment": (comment or "").strip()[:1000],
+                    "ts": time.time(),
+                }
+                updated = row
+            out.append(json.dumps(row, ensure_ascii=False))
+        self.path.write_text("\n".join(out) + ("\n" if out else ""), encoding="utf-8")
+        return updated
+
     def pending_correctable(self, limit: int = 20) -> list[dict]:
         """Entries from LLM/web that are not yet saved to the knowledge base."""
         rows = []

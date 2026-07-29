@@ -11,14 +11,17 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from rag.config import CHAT_MODEL, EMBED_MODEL
 from rag.pipeline import PlaywrightRAGBot
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Playwright RAG chatbot (CLI)")
+    parser = argparse.ArgumentParser(
+        description="Playwright RAG chatbot (CLI, LangChain)"
+    )
     parser.add_argument("question", nargs="+", help="Question about Playwright testing")
-    parser.add_argument("--model", default="gemma4:e2b")
-    parser.add_argument("--embed-model", default="nomic-embed-text")
+    parser.add_argument("--model", default=CHAT_MODEL)
+    parser.add_argument("--embed-model", default=EMBED_MODEL)
     parser.add_argument("--top-k", type=int, default=4)
     parser.add_argument("--rebuild-index", action="store_true")
     parser.add_argument("--json", action="store_true", help="Print full JSON result")
@@ -35,7 +38,7 @@ def main() -> int:
     if not bot.llm.is_available():
         print(
             "Ollama is not reachable or model is missing. "
-            "Start Ollama and ensure gemma4:e2b is pulled.",
+            f"Start Ollama and run: ollama pull {args.model}",
             file=sys.stderr,
         )
         return 1
@@ -46,6 +49,7 @@ def main() -> int:
     else:
         print(
             f"=== mode={result.get('mode')} "
+            f"framework={result.get('framework')} "
             f"best={result.get('best_score')} "
             f"db={result.get('vector_db')} "
             f"chunks={result.get('indexed_chunks')} ==="
