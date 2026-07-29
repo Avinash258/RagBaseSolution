@@ -13,7 +13,12 @@ from chromadb.config import Settings
 
 from rag.embeddings import OllamaEmbedder
 
-COLLECTION_NAME = "playwright_knowledge"
+
+def collection_name_for(embed_model: str) -> str:
+    safe = "".join(ch if ch.isalnum() else "_" for ch in embed_model.lower())
+    return f"playwright_knowledge_{safe}"
+
+
 DEFAULT_PERSIST_DIR = Path(__file__).resolve().parent / "chroma_db"
 # Bump when chunking logic changes so stale indexes rebuild automatically
 CHUNKER_VERSION = "3-nomic-prefix"
@@ -43,6 +48,9 @@ class ChromaRetriever:
         self.persist_dir.mkdir(parents=True, exist_ok=True)
         self.embedder = OllamaEmbedder(model=embed_model)
         self.chunks: list[Chunk] = []
+        self.collection_name = collection_name_for(embed_model)
+        # Prefer model-scoped collection; fall back to legacy name if it already has data
+        self._legacy_collection = "playwright_knowledge"
 
         self._client = chromadb.PersistentClient(
             path=str(self.persist_dir),
@@ -54,8 +62,21 @@ class ChromaRetriever:
 
     def _bind_collection(self):
         """Attach to the named collection (fresh handle after external rebuilds)."""
+        try:
+            legacy = self._client.get_collection(self._legacy_collection)
+            if legacy.count() > 0 and self.collection_name != self._legacy_collection:
+                # Keep using legacy until user rebuilds into the new name
+                existing_new = None
+                try:
+                    existing_new = self._client.get_collection(self.collection_name)
+                except Exception:  # noqa: BLE001
+                    existing_new = None
+                if existing_new is None or existing_new.count() == 0:
+                    return legacy
+        except Exception:  # noqa: BLE001
+            pass
         return self._client.get_or_create_collection(
-            name=COLLECTION_NAME,
+            name=self.collection_name,
             metadata={"hnsw:space": "cosine"},
         )
 
@@ -129,11 +150,27 @@ class ChromaRetriever:
             "fingerprint": fingerprint,
             "chunk_count": self.count,
             "embed_model": self.embedder.model,
-            "collection": COLLECTION_NAME,
+            "collection": self.collection_name,
         }
         (self.persist_dir / "index_meta.json").write_text(
             json.dumps(meta, indent=2),
             encoding="utf-8",
+        )
+
+    def index_is_stale(self) -> bool:
+        """True when knowledge/embed fingerprint no longer matches index_meta."""
+        meta_path = self.persist_dir / "index_meta.json"
+        if not meta_path.exists():
+            return self.count == 0
+        try:
+            previous = json.loads(meta_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return True
+        fingerprint = knowledge_fingerprint(self.knowledge_dir, self.embedder.model)
+        return (
+            previous.get("fingerprint") != fingerprint
+            or previous.get("embed_model") != self.embedder.model
+            or int(previous.get("chunk_count") or -1) != self.count
         )
 
     def rebuild(self) -> int:
@@ -145,11 +182,15 @@ class ChromaRetriever:
             )
 
         # Drop and recreate for a clean rebuild
-        try:
-            self._client.delete_collection(COLLECTION_NAME)
-        except Exception:  # noqa: BLE001
-            pass
-        self._collection = self._bind_collection()
+        for name in {self.collection_name, self._legacy_collection}:
+            try:
+                self._client.delete_collection(name)
+            except Exception:  # noqa: BLE001
+                pass
+        self._collection = self._client.get_or_create_collection(
+            name=self.collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
 
         self.chunks = load_chunks(self.knowledge_dir)
         ids = [c.id for c in self.chunks]

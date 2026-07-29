@@ -16,9 +16,12 @@ from rag.config import (
     LLM_MIN_CHARS,
     MAX_SOURCES_FOR_PROMPT,
     RAG_MIN_SCORE,
+    RETRIEVE_MIN_SCORE,
     SOURCE_CHAR_LIMIT,
     SYNTH_NUM_PREDICT,
     TOP_K,
+    TRAINABLE_DOMAINS,
+    TRAINABLE_MODES,
     WEAK_RAG_SCORE,
 )
 from rag.history import AnswerHistory
@@ -26,6 +29,7 @@ from rag.lc_ingest import ingest_markdown_file
 from rag.lc_llm import LangChainLLM
 from rag.lc_tools import run_web_fallback
 from rag.lc_vectorstore import build_retriever, chunk_hits_to_sources
+from rag.security import has_trainable_body, is_trainable_url, redact_secrets
 from rag.web_search import learned_filename
 
 
@@ -73,14 +77,14 @@ class PlaywrightRAGBot:
         3) Ask user if satisfied — call ask_internet() only if not
         """
         hits = self.retriever.retrieve(
-            question, top_k=self.top_k, min_score=0.15
+            question, top_k=self.top_k, min_score=RETRIEVE_MIN_SCORE
         )
         best = hits[0][1] if hits else 0.0
 
         if hits and best >= self.rag_min_score:
             sources = chunk_hits_to_sources(hits[:MAX_SOURCES_FOR_PROMPT])
             if best >= FAST_EXTRACT_SCORE:
-                answer = _extractive_answer(question, sources)
+                answer = _extractive_answer(question, sources, origin="vector DB")
             else:
                 answer = self._synthesize(question, sources, origin="vector DB")
             return self._finish(
@@ -156,22 +160,36 @@ class PlaywrightRAGBot:
         web = run_web_fallback(question, max_pages=3)
         if web.get("ok") and (web.get("sources") or web.get("answer")):
             web_sources = _web_sources(web)
-            answer = self._synthesize(question, web_sources, origin="internet")
-            if not _is_proper_llm_answer(answer):
-                answer = web.get("answer") or answer
-            answer += (
-                "\n\n_Saved to history. Mark **Correct** to add this to the vector DB._"
+            answer = self._synthesize(
+                question, web_sources, origin="internet"
             )
+            if not _is_proper_llm_answer(answer):
+                answer = web.get("answer") or _extractive_answer(
+                    question, web_sources, origin="internet"
+                )
             learned = web.get("learned_markdown") or _markdown_from_qa(
                 question, answer, web.get("engine", "web")
             )
+            can_save = _web_can_save(web, learned)
+            if can_save:
+                answer += (
+                    "\n\n_Saved to history. Mark **Correct** only if accurate — "
+                    "it will be added to the local vector database. "
+                    "Do not save secrets or private data._"
+                )
+            else:
+                answer += (
+                    "\n\n_Web links were found but page text was too thin to train "
+                    "the knowledge base. Refine the question or open the sources._"
+                )
+                learned = ""
             result = self._finish(
                 question,
                 answer=answer,
                 sources=web_sources,
                 mode="internet",
                 best=prior_best,
-                can_save=True,
+                can_save=can_save,
                 learned=learned,
                 correct=None,
                 can_search_web=False,
@@ -202,7 +220,7 @@ class PlaywrightRAGBot:
         Events: {"type": "status"|"token"|"final", ...}
         """
         hits = self.retriever.retrieve(
-            question, top_k=self.top_k, min_score=0.15
+            question, top_k=self.top_k, min_score=RETRIEVE_MIN_SCORE
         )
         best = hits[0][1] if hits else 0.0
         yield {"type": "status", "message": "Searching vector DB…", "best": best}
@@ -210,7 +228,7 @@ class PlaywrightRAGBot:
         if hits and best >= self.rag_min_score:
             sources = chunk_hits_to_sources(hits[:MAX_SOURCES_FOR_PROMPT])
             if best >= FAST_EXTRACT_SCORE:
-                answer = _extractive_answer(question, sources)
+                answer = _extractive_answer(question, sources, origin="vector DB")
                 result = self._finish(
                     question,
                     answer=answer,
@@ -237,7 +255,7 @@ class PlaywrightRAGBot:
                 parts = []
             answer = "".join(parts).strip()
             if not _is_proper_llm_answer(answer):
-                answer = _extractive_answer(question, sources)
+                answer = _extractive_answer(question, sources, origin="vector DB")
             result = self._finish(
                 question,
                 answer=answer,
@@ -344,20 +362,32 @@ class PlaywrightRAGBot:
                 parts = []
             answer = "".join(parts).strip()
             if not _is_proper_llm_answer(answer):
-                answer = web.get("answer") or answer
-            answer += (
-                "\n\n_Saved to history. Mark **Correct** to add this to the vector DB._"
-            )
+                answer = web.get("answer") or _extractive_answer(
+                    question, web_sources, origin="internet"
+                )
             learned = web.get("learned_markdown") or _markdown_from_qa(
                 question, answer, web.get("engine", "web")
             )
+            can_save = _web_can_save(web, learned)
+            if can_save:
+                answer += (
+                    "\n\n_Saved to history. Mark **Correct** only if accurate — "
+                    "it will be added to the local vector database. "
+                    "Do not save secrets or private data._"
+                )
+            else:
+                answer += (
+                    "\n\n_Web links were found but page text was too thin to train "
+                    "the knowledge base._"
+                )
+                learned = ""
             result = self._finish(
                 question,
                 answer=answer,
                 sources=web_sources,
                 mode="internet",
                 best=prior_best,
-                can_save=True,
+                can_save=can_save,
                 learned=learned,
                 correct=None,
                 can_search_web=False,
@@ -452,7 +482,8 @@ class PlaywrightRAGBot:
             text = ""
         if _is_proper_llm_answer(text):
             return text
-        return _extractive_answer(question, sources)
+        return _extractive_answer(question, sources, origin=origin)
+
 
     def _stream_synthesize(
         self, question: str, sources: list[dict], origin: str
@@ -476,6 +507,11 @@ class PlaywrightRAGBot:
                 "learned_file": entry.get("learned_file", ""),
                 "trained_chunks": 0,
             }
+        if entry.get("mode") not in TRAINABLE_MODES:
+            return {
+                "ok": False,
+                "error": f"Mode '{entry.get('mode')}' is not trainable.",
+            }
 
         markdown = (entry.get("learned_markdown") or "").strip()
         if not markdown:
@@ -484,8 +520,12 @@ class PlaywrightRAGBot:
                 entry.get("answer", ""),
                 entry.get("mode", "history"),
             )
-        if len(markdown) < 40:
-            return {"ok": False, "error": "Not enough content to train the vector DB."}
+        markdown = redact_secrets(markdown)
+        if not has_trainable_body(markdown):
+            return {
+                "ok": False,
+                "error": "Not enough trainable content to add to the vector DB.",
+            }
 
         self.knowledge_dir.mkdir(parents=True, exist_ok=True)
         filename = learned_filename(entry.get("question") or history_id)
@@ -543,12 +583,24 @@ def _web_sources(web: dict) -> list[dict]:
     return web_sources[:MAX_SOURCES_FOR_PROMPT]
 
 
-def _extractive_answer(question: str, sources: list[dict]) -> str:
+def _web_can_save(web: dict, learned: str) -> bool:
+    if not has_trainable_body(learned):
+        return False
+    urls = [s.get("url") or "" for s in (web.get("sources") or [])]
+    if not urls:
+        # Local-doc catalog answers may still be trainable
+        return True
+    return any(is_trainable_url(u, TRAINABLE_DOMAINS) for u in urls if u)
+
+
+def _extractive_answer(
+    question: str, sources: list[dict], origin: str = "vector DB"
+) -> str:
     if not sources:
         return ""
     top = sources[0]
     lines = [
-        f"**From vector DB** for: {question}",
+        f"**From {origin}** for: {question}",
         "",
         f"### [{top.get('n', 1)}] {top.get('title', 'Source')}",
         _trim(top.get("text") or top.get("preview") or "", 1200),

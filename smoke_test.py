@@ -1,4 +1,4 @@
-"""Smoke test: RAG fast path and local-LLM fallback."""
+"""Smoke test: RAG fast path and local-LLM fallback (no auto-internet)."""
 
 from __future__ import annotations
 
@@ -53,9 +53,16 @@ def main() -> int:
         f"[{result['mode']:12s}] best={result['best_score']:.3f} {elapsed:5.2f}s"
     )
     print(f"    answer: {safe(result['answer'])[:160]}")
-    if result["mode"] != "llm_fallback":
+    if result["mode"] not in {"llm", "llm_grounded", "none"}:
         failures += 1
-        print("    WARNING: expected local LLM fallback")
+        print("    WARNING: expected local LLM / none (internet is satisfaction-gated)")
+    if result.get("can_search_web") is not True and result["mode"] != "rag":
+        # none/llm should offer web search
+        if result["mode"] in {"llm", "llm_grounded", "none"} and not result.get(
+            "can_search_web"
+        ):
+            failures += 1
+            print("    WARNING: expected can_search_web=True")
 
     print("\nRESULT:", "PASS" if failures == 0 else f"FAIL ({failures})")
     return 0 if failures == 0 else 1

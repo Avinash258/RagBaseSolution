@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 from rag.config import CHAT_MODEL, EMBED_MODEL, FRAMEWORK
 from rag.history import AnswerHistory
 from rag.pipeline import PlaywrightRAGBot
+from rag.security import escape_html
 
 LOGO_PATH = ROOT / "assets" / "new-vision-logo.png"
 
@@ -398,17 +399,33 @@ with st.sidebar:
         )
     st.subheader("Status")
     st.write("Framework:", FRAMEWORK)
-    st.write("Ollama:", "✅" if bot.llm.is_available() else "❌")
+    chat_ok = bot.llm.is_available()
+    embed_ok = bot.retriever.embedder.is_available()
+    st.write("Chat model (Ollama):", "✅" if chat_ok else "❌")
+    st.write("Embed model (Ollama):", "✅" if embed_ok else "❌")
     st.write("Model:", bot.llm.model)
+    st.write("Embed:", bot.embed_model)
     st.write("Indexed chunks:", bot.retriever.count)
-    st.write("History:", len(bot.history.list_entries(limit=5000)))
+    st.write("History:", bot.history.count())
+    if bot.retriever.index_is_stale():
+        st.warning(
+            "Index may be stale. Knowledge files or the embed model changed "
+            "after the last indexing. Please rebuild index."
+        )
+    if not chat_ok or not embed_ok:
+        st.error(
+            "Ollama setup needed:\n\n"
+            f"`ollama pull {CHAT_MODEL}`\n\n"
+            f"`ollama pull {EMBED_MODEL}`\n\n"
+            "Then: `python index_knowledge.py`"
+        )
     st.markdown(
         '<div class="nv-steps">'
         "1. Search vector DB<br/>"
         "2. Qwen LLM if weak<br/>"
-        "3. Ask if you are <strong>satisfied</strong><br/>"
-        "4. Internet only if <strong>not satisfied</strong><br/>"
-        "5. Mark <strong>Correct</strong> to train KB"
+        "3. Ask if you are <strong>satisfied</strong> (internet gate)<br/>"
+        "4. Mark answer <strong>Helpful?</strong> (feedback)<br/>"
+        "5. Mark <strong>Correct</strong> only to train KB"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -461,9 +478,10 @@ def render_sources(sources: list[dict]) -> None:
             if isinstance(score, (int, float)) and 0 < score <= 1.05:
                 meta = f"{meta} · {score:.2f}"
             st.markdown(
-                f'<div class="source-row"><strong>[{n}] {title}</strong>'
-                f'<div class="source-meta">{meta}</div>'
-                f'<div>{preview}</div></div>',
+                f'<div class="source-row"><strong>[{escape_html(n)}] '
+                f"{escape_html(title)}</strong>"
+                f'<div class="source-meta">{escape_html(meta)}</div>'
+                f"<div>{escape_html(preview)}</div></div>",
                 unsafe_allow_html=True,
             )
             if link:
@@ -484,10 +502,10 @@ def render_feedback(msg: dict, idx: int) -> None:
             else "Not helpful"
         )
         comment = (fb.get("comment") or "").strip()
-        extra = f" — {comment}" if comment else ""
+        extra = f" — {escape_html(comment)}" if comment else ""
         st.markdown(
             f'<div class="nv-feedback"><p class="nv-feedback-done">'
-            f'Thanks for your feedback: <strong>{label}</strong>{extra}'
+            f"Thanks for your feedback: <strong>{escape_html(label)}</strong>{extra}"
             f"</p></div>",
             unsafe_allow_html=True,
         )
@@ -603,6 +621,11 @@ def render_result(msg: dict, idx: int) -> None:
                     st.rerun()
 
     if msg.get("can_save_to_kb") and msg.get("history_id") and not msg.get("saved_to_kb"):
+        st.caption(
+            "Correct — save to KB: only if the answer is accurate. "
+            "It is stored locally and used in future responses. "
+            "Do not save secrets, credentials, or private data."
+        )
         if st.button(
             "Correct — save to knowledge base",
             key=f"save_{msg['history_id']}_{idx}",
@@ -671,7 +694,7 @@ if _show_suggestions:
 for i, msg in enumerate(st.session_state.messages):
     if msg["role"] == "user":
         st.markdown(
-            f'<p class="user-q">{msg["content"]}</p>',
+            f'<p class="user-q">{escape_html(msg.get("content", ""))}</p>',
             unsafe_allow_html=True,
         )
     else:
