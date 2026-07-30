@@ -343,7 +343,7 @@ st.markdown(NV_CSS, unsafe_allow_html=True)
 
 
 @st.cache_resource(show_spinner="Loading chatbot…")
-def get_bot() -> PlaywrightRAGBot:
+def get_bot(_cache_version: str = "lc-v2-history-count") -> PlaywrightRAGBot:
     bot = PlaywrightRAGBot(
         model=CHAT_MODEL,
         embed_model=EMBED_MODEL,
@@ -359,6 +359,8 @@ def get_bot() -> PlaywrightRAGBot:
 
 
 bot = get_bot()
+# Always bind a fresh AnswerHistory so Streamlit cache cannot keep a stale class
+bot.history = AnswerHistory(path=bot.history.path)
 _logo_uri = _logo_data_uri()
 
 # Brand header
@@ -406,7 +408,7 @@ with st.sidebar:
     st.write("Model:", bot.llm.model)
     st.write("Embed:", bot.embed_model)
     st.write("Indexed chunks:", bot.retriever.count)
-    st.write("History:", bot.history.count())
+    st.write("History:", AnswerHistory(path=bot.history.path).count())
     if bot.retriever.index_is_stale():
         st.warning(
             "Index may be stale. Knowledge files or the embed model changed "

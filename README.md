@@ -90,9 +90,16 @@ rag/
   retriever.py         # ChromaDB
   history.py           # Q&A + feedback
   knowledge/           # Markdown knowledge base
-docs/workflow.md
+docs/
+  architecture.md      # System architecture diagram
+  workflow.md          # Runtime decision flow
 tests/unit/            # Offline unit tests
 ```
+
+## Diagrams
+
+- [Architecture](docs/architecture.md) — components and data flow  
+- [Workflow](docs/workflow.md) — satisfaction-gated answer cascade  
 
 ## Repo
 
