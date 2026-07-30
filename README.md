@@ -1,8 +1,8 @@
-# Playwright Testing Chatbot (RAG)
+# Multi-mode Testing Hub (RAG)
 
-Local **LangChain** RAG chatbot for Playwright testing (Streamlit + Ollama + Chroma).
+NEW VISION / SoftServe **Streamlit** hub with **eight specialist agents**, **AI Reconcile**, and providers **Local (Ollama) / Gemini / NVIDIA**.
 
-**Flow:** Vector DB → Qwen (`qwen2.5-coder`) → ask if satisfied → Internet only if not → Correct saves to KB
+**Playwright path:** Vector DB → Qwen → satisfied? → Internet if not → Correct saves to KB
 
 ## Requirements
 
@@ -10,6 +10,8 @@ Local **LangChain** RAG chatbot for Playwright testing (Streamlit + Ollama + Chr
 - [Ollama](https://ollama.com) with:
   - `qwen2.5-coder:1.5b` (chat)
   - `nomic-embed-text` (embeddings)
+- Optional: `GEMINI_API_KEY`, `NVIDIA_API_KEY` for cloud providers
+- NVIDIA uses the OpenAI-compatible client (`openai` package) against `https://integrate.api.nvidia.com/v1` with model `z-ai/glm-5.2` by default
 
 ## Setup
 
@@ -29,77 +31,72 @@ run_chatbot.bat
 
 Open http://localhost:8501
 
-Copy `.env.example` to `.env` to override models / Ollama URL.
+Copy `.env.example` to `.env` for models, Ollama URL, and API keys.
 
-## How it works
+## Modes (specialist agents)
 
-1. **Vector DB** — retrieve curated Playwright docs from `rag/knowledge/`
-2. **Qwen (LangChain ChatOllama)** — synthesize or answer when RAG is weak
-3. **Satisfied?** — internet search runs only after **No — search internet**
-4. **Helpful?** — response feedback stored in history
-5. **Correct — save to KB** — writes local markdown + embeds into Chroma
+| Mode | Agent focus |
+|------|-------------|
+| Playwright KB | Existing RAG cascade + web gate |
+| Synthetic data | Fixtures / personas |
+| Manual cases | Structured manual test cases |
+| Test strategy | Strategy / plan templates |
+| Estimation | Effort ranges |
+| Agile | Scrum/Kanban QA |
+| Defect lifecycle | Triage / severity |
+| Workflow diagram | Requirements → Mermaid flowchart |
 
-**Privacy:** Saved answers are stored locally and may appear in future replies. Do not save secrets, credentials, private URLs, or customer data.
+## AI Reconcile
 
-**Learned files:** Runtime `web_learned_*.md` files are gitignored. Only curated docs should be committed.
+| Strategy | Behavior |
+|----------|----------|
+| Off | Single specialist answer |
+| Two providers | Same mode on primary + secondary → merge |
+| RAG + LLM | RAG draft + bare LLM → merge |
+| Multi-mode | Up to 3 agents → merge |
+| On demand | After any answer, **Reconcile with secondary provider** |
+
+Reconcile always produces **one final answer** (drafts in an expander). No Arena vote UI.
+
+## Privacy
+
+Saved answers are local and may appear in future replies. Do not save secrets, credentials, private URLs, or customer data.
 
 ## Rebuild index
 
-Use the sidebar **Rebuild index** button, or:
+**Tech Data → Rebuild indexes**, or:
 
 ```bash
 python index_knowledge.py
 ```
 
-If knowledge files change, the sidebar warns when the index may be stale.
-
-## Smoke tests
+## Smoke / unit tests
 
 ```bash
 python smoke_test.py
-python smoke_force_web.py
-python smoke_web_learn.py
-```
-
-Unit tests (no Ollama required):
-
-```bash
 pytest -q
 ```
-
-## Optional: Google Custom Search
-
-- `GOOGLE_API_KEY`
-- `GOOGLE_CSE_ID`
-
-## Knowledge directories
-
-| Path | Purpose |
-|------|---------|
-| `rag/knowledge/` | Active KB used by the app (curated docs) |
-| `knowledge/playwright/` | Legacy/sample notes — not the runtime index root |
 
 ## Project layout
 
 ```
-app.py                 # Streamlit UI
-ask.py                 # CLI ask
-index_knowledge.py     # Rebuild Chroma index
+app.py                 # Streamlit UI (mode cards, Tech Data, reconcile)
 rag/
-  lc_pipeline.py       # LangChain cascade
-  retriever.py         # ChromaDB
-  history.py           # Q&A + feedback
-  knowledge/           # Markdown knowledge base
+  agents/              # BaseModeAgent, specialists, ReconcileAgent, AgentHub
+  modes.py             # Mode registry
+  providers.py         # Ollama / Gemini / NVIDIA
+  diagram.py           # Mermaid extract/validate
+  lc_pipeline.py       # Playwright cascade
+  knowledge/modes/     # Per-mode seed knowledge
 docs/
-  architecture.md      # System architecture diagram
-  workflow.md          # Runtime decision flow
-tests/unit/            # Offline unit tests
+  architecture.md
+  workflow.md
 ```
 
 ## Diagrams
 
-- [Architecture](docs/architecture.md) — components and data flow  
-- [Workflow](docs/workflow.md) — satisfaction-gated answer cascade  
+- [Architecture](docs/architecture.md)
+- [Workflow](docs/workflow.md)
 
 ## Repo
 

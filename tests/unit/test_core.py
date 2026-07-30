@@ -56,7 +56,11 @@ def test_history_append_feedback_and_pending(tmp_path: Path):
         learned_markdown="",
     )
     pending = hist.pending_correctable(limit=10)
-    assert all(p["mode"] in {"llm", "llm_grounded", "internet"} for p in pending)
+    assert all(
+        p["mode"]
+        in {"llm", "llm_grounded", "internet", "agent", "reconciled"}
+        for p in pending
+    )
     assert all((p.get("learned_markdown") or "").strip() for p in pending)
 
 
