@@ -1,0 +1,14 @@
+rag/chroma_db/
+rag/history/
+rag/sources/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.streamlit/secrets.toml
+*.html
+jina_google.md
+pw_intro.html
+searx.json
+.DS_Store
