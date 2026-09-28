@@ -1,53 +1,57 @@
-# Playwright Testing Chatbot (RAG)
+# RagBaseSolution — Playwright Testing Chatbot (RAG)
 
-Local RAG chatbot for Playwright testing.
+Local **RAG** chatbot for Playwright testing knowledge — ChromaDB + Ollama with a self-improving knowledge base.
 
-**Flow:** Vector DB (Chroma) → Ollama `gemma4:e2b` → Internet (if needed) → Save to KB when marked correct
+> Pairs with [AI-Shadow-Product-Owner](https://github.com/Avinash258/AI-Shadow-Product-Owner) · [Portfolio](https://avinash258.github.io/Protfolio/)
 
-## Requirements
+## Overview
 
-- Python 3.12+
-- [Ollama](https://ollama.com) running locally with:
-  - `gemma4:e2b` (chat)
-  - `nomic-embed-text` (embeddings)
+Ask questions about Playwright testing and get answers grounded in a local vector store. When the model needs broader context it can fall back to the web; answers marked correct can be saved back into the knowledge base so the system improves over time.
 
-## Setup
+**Flow:** Vector DB (Chroma) → Ollama LLM → optional web lookup → save to KB when validated
+
+## Features
+
+- Local-first RAG over Playwright / QA knowledge
+- Indexing and ingest pipelines for custom docs
+- Threshold calibration for retrieval quality
+- Smoke tests for chat and web-learn paths
+- Batch helpers for Windows (`run_chatbot.bat`)
+
+## Stack
+
+- Python · ChromaDB · Ollama
+- Knowledge corpus under `knowledge/`
+- RAG pipeline under `rag/`
+
+## Getting started
 
 ```bash
-py -3 -m pip install -r requirements.txt
-py -3 index_knowledge.py
-py -3 -m streamlit run app.py
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# Index knowledge, then chat
+python index_knowledge.py
+python app.py
+# or
+python ask.py "How do I use Playwright fixtures?"
 ```
 
-Or double-click `run_chatbot.bat`.
-
-Open http://localhost:8501
-
-## Optional: Google Custom Search
-
-Set env vars for real Google results when HTML scraping is blocked:
-
-- `GOOGLE_API_KEY`
-- `GOOGLE_CSE_ID`
+Optional: `ingest_sources.py`, `calibrate_threshold.py`, and `smoke_*.py` for ops and validation.
 
 ## Project layout
 
 ```
-app.py                 # Streamlit UI
-ask.py                 # CLI ask
-ingest_sources.py      # Pull docs into knowledge/
-index_knowledge.py     # Rebuild Chroma index
-rag/
-  pipeline.py          # Vector DB → LLM → internet cascade
-  retriever.py         # ChromaDB
-  embeddings.py        # Ollama embeddings
-  llm.py               # Ollama chat
-  web_search.py        # Internet fallback
-  history.py           # Q&A history
-  knowledge/           # Markdown knowledge base
-docs/workflow.md       # Workflow diagram
+knowledge/   source documents for the KB
+rag/         retrieval and generation helpers
+docs/        design / usage notes
+app.py       chatbot entry
+ask.py       one-shot Q&A CLI
 ```
 
-## Repo
+## Author
 
-https://github.com/Avinash258/RagBaseSolution
+**Pushanshu Avinash Sharma** — QA Automation Architect / Lead SDET  
+[GitHub](https://github.com/Avinash258) · [LinkedIn](https://www.linkedin.com/in/p-avinash-sharma-8b0203b9/) · [Portfolio](https://avinash258.github.io/Protfolio/)
