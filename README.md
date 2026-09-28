@@ -1,14 +1,14 @@
-# RagBaseSolution â€” Playwright Testing Chatbot (RAG)
+# RagBaseSolution Ã¢â‚¬â€ Playwright Testing Chatbot (RAG)
 
-Local **RAG** chatbot for Playwright testing knowledge â€” ChromaDB + Ollama with a self-improving knowledge base.
+Local **RAG** chatbot for Playwright testing knowledge Ã¢â‚¬â€ ChromaDB + Ollama with a self-improving knowledge base.
 
-> Pairs with [AI-Shadow-Product-Owner](https://github.com/Avinash258/AI-Shadow-Product-Owner) Â· [Portfolio](https://avinash258.github.io/Protfolio/)
+> Pairs with [AI-Shadow-Product-Owner](https://github.com/Avinash258/AI-Shadow-Product-Owner) Ã‚Â· [Portfolio](https://avinash258.github.io/portfolio/)
 
 ## Overview
 
 Ask questions about Playwright testing and get answers grounded in a local vector store. When the model needs broader context it can fall back to the web; answers marked correct can be saved back into the knowledge base so the system improves over time.
 
-**Flow:** Vector DB (Chroma) â†’ Ollama LLM â†’ optional web lookup â†’ save to KB when validated
+**Flow:** Vector DB (Chroma) Ã¢â€ â€™ Ollama LLM Ã¢â€ â€™ optional web lookup Ã¢â€ â€™ save to KB when validated
 
 ## Features
 
@@ -20,7 +20,7 @@ Ask questions about Playwright testing and get answers grounded in a local vecto
 
 ## Stack
 
-- Python Â· ChromaDB Â· Ollama
+- Python Ã‚Â· ChromaDB Ã‚Â· Ollama
 - Knowledge corpus under `knowledge/`
 - RAG pipeline under `rag/`
 
@@ -53,5 +53,5 @@ ask.py       one-shot Q&A CLI
 
 ## Author
 
-**Avinash Sharma** â€” QA Automation Architect / Lead SDET  
-[GitHub](https://github.com/Avinash258) Â· [LinkedIn](https://www.linkedin.com/in/p-avinash-sharma-8b0203b9/) Â· [Portfolio](https://avinash258.github.io/Protfolio/)
+**Avinash Sharma** Ã¢â‚¬â€ QA Automation Architect / Lead SDET  
+[GitHub](https://github.com/Avinash258) Ã‚Â· [LinkedIn](https://www.linkedin.com/in/p-avinash-sharma-8b0203b9/) Ã‚Â· [Portfolio](https://avinash258.github.io/portfolio/)
